@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mouse Trap Monitor Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .nodes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .node-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #667eea;
+        }
+        
+        .node-card.offline {
+            border-left-color: #ccc;
+            opacity: 0.6;
+        }
+        
+        .node-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .node-id {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .node-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .node-status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .node-status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .node-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .node-info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+        }
+        
+        .node-info-label {
+            color: #666;
+        }
+        
+        .node-info-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .battery-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        
+        .battery-fill {
+            height: 100%;
+            transition: width 0.3s, background-color 0.3s;
+        }
+        
+        .battery-good { background: #28a745; }
+        .battery-medium { background: #ffc107; }
+        .battery-low { background: #dc3545; }
+        
+        .events-section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .events-section h2 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        
+        .event-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .event-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem;
+            border-bottom: 1px solid #eee;
+            transition: background 0.2s;
+        }
+        
+        .event-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .event-item.trigger {
+            background: #fff3cd;
+            border-left: 3px solid #ffc107;
+        }
+        
+        .event-item.low-battery {
+            background: #f8d7da;
+            border-left: 3px solid #dc3545;
+        }
+        
+        .event-info {
+            flex: 1;
+        }
+        
+        .event-type {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .event-details {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        .event-time {
+            font-size: 0.85rem;
+            color: #999;
+            white-space: nowrap;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        
+        .status-indicator.connected {
+            background: #28a745;
+            box-shadow: 0 0 5px #28a745;
+        }
+        
+        .status-indicator.disconnected {
+            background: #dc3545;
+        }
+        
+        .connection-status {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: white;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .new-event {
+            animation: pulse 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🪤 Mouse Trap Monitoring Dashboard</h1>
+    </header>
+    
+    <div class="connection-status">
+        <span class="status-indicator disconnected" id="connectionIndicator"></span>
+        <span id="connectionText">Connecting...</span>
+    </div>
+    
+    <div class="container">
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Catches</div>
+                <div class="stat-value" id="totalCatches">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Traps</div>
+                <div class="stat-value" id="activeTraps">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Catches (24h)</div>
+                <div class="stat-value" id="catches24h">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">System Status</div>
+                <div class="stat-value" style="font-size: 2rem;">✓</div>
+            </div>
+        </div>
+        
+        <!-- Trap Nodes -->
+        <h2 style="margin-bottom: 1rem; color: #333;">Active Trap Nodes</h2>
+        <div class="nodes-grid" id="nodesGrid"></div>
+        
+        <!-- Recent Events -->
+        <div class="events-section">
+            <h2>Recent Events</h2>
+            <div class="event-list" id="eventList"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Connect to SocketIO
+        const socket = io();
+        
+        // Connection status
+        socket.on('connect', () => {
+            document.getElementById('connectionIndicator').className = 'status-indicator connected';
+            document.getElementById('connectionText').textContent = 'Connected';
+            socket.emit('request_update');
+        });
+        
+        socket.on('disconnect', () => {
+            document.getElementById('connectionIndicator').className = 'status-indicator disconnected';
+            document.getElementById('connectionText').textContent = 'Disconnected';
+        });
+        
+        // Receive live trap events
+        socket.on('trap_event', (data) => {
+            console.log('Live event received:', data);
+            addEventToList(data);
+            loadData();  // Refresh all data
+        });
+        
+        // Receive data updates
+        socket.on('data_update', (data) => {
+            updateStatistics(data.statistics);
+            updateNodes(data.nodes);
+            updateEvents(data.events);
+        });
+        
+        // Load initial data
+        function loadData() {
+            fetch('/api/statistics')
+                .then(r => r.json())
+                .then(data => updateStatistics(data.statistics));
+            
+            fetch('/api/nodes')
+                .then(r => r.json())
+                .then(data => updateNodes(data.nodes));
+            
+            fetch('/api/events?limit=20')
+                .then(r => r.json())
+                .then(data => updateEvents(data.events));
+        }
+        
+        // Update statistics
+        function updateStatistics(stats) {
+            document.getElementById('totalCatches').textContent = stats.total_triggers || 0;
+            document.getElementById('activeTraps').textContent = stats.active_nodes || 0;
+            document.getElementById('catches24h').textContent = stats.triggers_24h || 0;
+        }
+        
+        // Update node cards
+        function updateNodes(nodes) {
+            const grid = document.getElementById('nodesGrid');
+            grid.innerHTML = '';
+            
+            nodes.forEach(node => {
+                const card = document.createElement('div');
+                card.className = `node-card ${node.is_online ? 'online' : 'offline'}`;
+                
+                const batteryPercent = Math.min(100, Math.max(0, ((node.battery_voltage - 3.0) / 1.2) * 100));
+                const batteryClass = batteryPercent > 50 ? 'battery-good' : batteryPercent > 20 ? 'battery-medium' : 'battery-low';
+                
+                card.innerHTML = `
+                    <div class="node-header">
+                        <div class="node-id">Node ${node.node_id}</div>
+                        <div class="node-status ${node.is_online ? 'online' : 'offline'}">
+                            ${node.is_online ? 'Online' : 'Offline'}
+                        </div>
+                    </div>
+                    <div class="node-info">
+                        <div class="node-info-row">
+                            <span class="node-info-label">Total Catches:</span>
+                            <span class="node-info-value">${node.total_triggers || 0}</span>
+                        </div>
+                        <div class="node-info-row">
+                            <span class="node-info-label">Battery:</span>
+                            <span class="node-info-value">${node.battery_voltage ? node.battery_voltage.toFixed(2) + 'V' : 'N/A'}</span>
+                        </div>
+                        <div class="battery-bar">
+                            <div class="battery-fill ${batteryClass}" style="width: ${batteryPercent}%"></div>
+                        </div>
+                        <div class="node-info-row" style="margin-top: 0.5rem;">
+                            <span class="node-info-label">Last Seen:</span>
+                            <span class="node-info-value">${formatTime(node.last_seen)}</span>
+                        </div>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+        
+        // Update events list
+        function updateEvents(events) {
+            const list = document.getElementById('eventList');
+            list.innerHTML = '';
+            
+            events.forEach(event => {
+                addEventToList(event, false);
+            });
+        }
+        
+        // Add single event to list
+        function addEventToList(event, isNew = true) {
+            const list = document.getElementById('eventList');
+            const item = document.createElement('div');
+            
+            let eventClass = '';
+            let eventIcon = '';
+            let eventText = '';
+            
+            switch(event.event_type) {
+                case 1:
+                    eventClass = 'trigger';
+                    eventIcon = '🪤';
+                    eventText = 'Trap Triggered';
+                    break;
+                case 2:
+                    eventClass = 'low-battery';
+                    eventIcon = '🔋';
+                    eventText = 'Low Battery';
+                    break;
+                default:
+                    eventIcon = 'ℹ️';
+                    eventText = 'Status Update';
+            }
+            
+            item.className = `event-item ${eventClass} ${isNew ? 'new-event' : ''}`;
+            item.innerHTML = `
+                <div class="event-info">
+                    <div class="event-type">${eventIcon} ${eventText} - Node ${event.node_id}</div>
+                    <div class="event-details">
+                        ${event.trap_count ? 'Total catches: ' + event.trap_count : ''}
+                        ${event.battery_voltage ? ' | Battery: ' + event.battery_voltage.toFixed(2) + 'V' : ''}
+                    </div>
+                </div>
+                <div class="event-time">${formatTime(event.received_at)}</div>
+            `;
+            
+            if (isNew) {
+                list.insertBefore(item, list.firstChild);
+            } else {
+                list.appendChild(item);
+            }
+        }
+        
+        // Format timestamp
+        function formatTime(timestamp) {
+            if (!timestamp) return 'Unknown';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+            
+            if (diff < 60) return 'Just now';
+            if (diff < 3600) return Math.floor(diff / 60) + ' min ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + ' hr ago';
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        }
+        
+        // Initial load
+        loadData();
+        
+        // Refresh data every 30 seconds
+        setInterval(() => {
+            socket.emit('request_update');
+        }, 30000);
+    </script>
+</body>
+</html>

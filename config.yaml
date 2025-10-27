@@ -1,0 +1,53 @@
+# Mouse Trap Monitoring System Configuration
+
+# Telegram Bot Settings
+telegram:
+  # Get bot token from @BotFather on Telegram
+  bot_token: "YOUR_BOT_TOKEN_HERE"
+  
+  # Get your chat ID from @userinfobot
+  chat_id: "YOUR_CHAT_ID_HERE"
+
+# MQTT Broker Settings
+mqtt:
+  broker: "localhost"
+  port: 1883
+  username: ""  # Optional
+  password: ""  # Optional
+
+# Notification Preferences
+notifications:
+  on_trigger: true          # Send notification when trap is triggered
+  on_low_battery: true      # Send notification for low battery
+  on_status: false          # Send notification for status updates
+  min_interval_seconds: 10  # Minimum time between notifications per node
+
+# Node Location Mapping (customize for your setup)
+node_locations:
+  "1": "Kitchen"
+  "2": "Garage"
+  "3": "Basement"
+  "4": "Attic"
+  "5": "Shed"
+
+# Database Settings
+database:
+  path: "/var/lib/trap-monitor/trap_events.db"
+  backup_enabled: true
+  backup_interval_days: 7
+
+# Web Dashboard Settings
+dashboard:
+  host: "0.0.0.0"
+  port: 5000
+  secret_key: "change-this-secret-key-to-something-random"
+
+# System Settings
+system:
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_retention_days: 30
+  
+# Alert Thresholds
+thresholds:
+  low_battery_voltage: 3.3  # Volts
+  node_offline_hours: 24    # Hours before considering node offline
